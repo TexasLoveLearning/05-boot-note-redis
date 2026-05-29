@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>备忘录</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ===== 登录/注册页 ===== -->
+    <div id="authPage" class="page">
+        <div class="auth-card">
+            <h1>📝 备忘录</h1>
+
+            <!-- 登录表单 -->
+            <div id="loginForm">
+                <h2>登录</h2>
+                <input type="text" id="loginUsername" placeholder="用户名">
+                <input type="password" id="loginPassword" placeholder="密码">
+                <button onclick="login()">登录</button>
+                <p class="switch-link">没有账号？<a href="javascript:void(0)" onclick="showRegister()">去注册</a></p>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="registerForm" style="display:none">
+                <h2>注册</h2>
+                <input type="text" id="regUsername" placeholder="用户名">
+                <input type="password" id="regPassword" placeholder="密码">
+                <button onclick="register()">注册</button>
+                <p class="switch-link">已有账号？<a href="javascript:void(0)" onclick="showLogin()">去登录</a></p>
+            </div>
+
+            <div id="authMessage" class="message"></div>
+        </div>
+    </div>
+
+    <!-- ===== 备忘录主页 ===== -->
+    <div id="notesPage" class="page" style="display:none">
+        <div class="notes-container">
+            <header>
+                <h1>📝 我的备忘录</h1>
+                <div class="header-right">
+                    <span id="userInfo"></span>
+                    <button class="btn-logout" onclick="logout()">退出</button>
+                </div>
+            </header>
+
+            <div class="editor">
+                <input type="text" id="noteTitle" placeholder="标题">
+                <textarea id="noteContent" placeholder="写点什么..." rows="4"></textarea>
+                <button onclick="addNote()">✚ 添加</button>
+            </div>
+
+            <div id="noteList"></div>
+
+            <div id="noteMessage" class="message"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = '';
+        let currentUserId = localStorage.getItem('userId') || null;
+        let editingNoteId = null;
+
+        // ========== 页面切换 ==========
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+            clearMessage();
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+            clearMessage();
+        }
+
+        function showMessage(el, text, isError) {
+            el.textContent = text;
+            el.className = 'message ' + (isError ? 'error' : 'success');
+            setTimeout(() => el.textContent = '', 3000);
+        }
+
+        function clearMessage() {
+            document.getElementById('authMessage').textContent = '';
+            document.getElementById('noteMessage').textContent = '';
+        }
+
+        // ========== 认证 ==========
+        async function api(url, body) {
+            const res = await fetch(API + url, {
+                method: body ? 'POST' : 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined
+            });
+            return res.json();
+        }
+
+        async function register() {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value.trim();
+            if (!username || !password) return showMessage(document.getElementById('authMessage'), '请填写完整', true);
+
+            const result = await api('/api/user/register', { username, password });
+            if (result.code === 200) {
+                showMessage(document.getElementById('authMessage'), '注册成功！去登录吧', false);
+                showLogin();
+                document.getElementById('regUsername').value = '';
+                document.getElementById('regPassword').value = '';
+            } else {
+                showMessage(document.getElementById('authMessage'), result.msg, true);
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            if (!username || !password) return showMessage(document.getElementById('authMessage'), '请填写完整', true);
+
+            const result = await api('/api/user/login', { username, password });
+            if (result.code === 200) {
+                currentUserId = result.data;
+                localStorage.setItem('userId', currentUserId);
+                localStorage.setItem('username', username);
+                enterNotesPage(username);
+            } else {
+                showMessage(document.getElementById('authMessage'), result.msg, true);
+            }
+        }
+
+        function enterNotesPage(username) {
+            document.getElementById('authPage').style.display = 'none';
+            document.getElementById('notesPage').style.display = 'block';
+            document.getElementById('userInfo').textContent = '👋 ' + (username || localStorage.getItem('username'));
+            loadNotes();
+        }
+
+        function logout() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('username');
+            currentUserId = null;
+            document.getElementById('notesPage').style.display = 'none';
+            document.getElementById('authPage').style.display = 'flex';
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+        }
+
+        // ========== 自动登录 ==========
+        if (currentUserId) {
+            enterNotesPage(localStorage.getItem('username'));
+        }
+
+        // ========== 笔记操作 ==========
+        async function addNote() {
+            const title = document.getElementById('noteTitle').value.trim() || '无标题';
+            const content = document.getElementById('noteContent').value.trim();
+            if (!content) return showMessage(document.getElementById('noteMessage'), '内容不能为空', true);
+
+            const body = { userId: parseInt(currentUserId), title, content };
+
+            if (editingNoteId) {
+                const result = await api('/api/notes/' + editingNoteId, { ...body, id: editingNoteId });
+                if (result.code === 200) {
+                    showMessage(document.getElementById('noteMessage'), '更新成功', false);
+                } else {
+                    showMessage(document.getElementById('noteMessage'), '更新失败', true);
+                }
+                editingNoteId = null;
+                document.querySelector('.editor button').textContent = '✚ 添加';
+            } else {
+                const result = await api('/api/notes', body);
+                if (result.code === 200) {
+                    showMessage(document.getElementById('noteMessage'), '添加成功', false);
+                } else {
+                    showMessage(document.getElementById('noteMessage'), '添加失败', true);
+                }
+            }
+            document.getElementById('noteTitle').value = '';
+            document.getElementById('noteContent').value = '';
+            loadNotes();
+        }
+
+        async function loadNotes() {
+            const res = await fetch(API + '/api/notes/user/' + currentUserId);
+            const result = await res.json();
+            const list = document.getElementById('noteList');
+            if (result.code === 200 && result.data && result.data.length > 0) {
+                list.innerHTML = result.data.map(n => `
+                    <div class="note-card">
+                        <div class="note-header">
+                            <strong>${n.title}</strong>
+                            <span class="note-time">${n.createTime ? n.createTime.substring(0, 16) : ''}</span>
+                        </div>
+                        <div class="note-body">${n.content}</div>
+                        <div class="note-actions">
+                            <button class="btn-edit" onclick="editNote(${n.id}, '${n.title.replace(/'/g, "\\'")}', '${n.content.replace(/'/g, "\\'")}')">✏️ 编辑</button>
+                            <button class="btn-del" onclick="deleteNote(${n.id})">🗑️ 删除</button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = '<div class="empty">还没有备忘录，写一条吧 ✍️</div>';
+            }
+        }
+
+        function editNote(id, title, content) {
+            editingNoteId = id;
+            document.getElementById('noteTitle').value = title;
+            document.getElementById('noteContent').value = content;
+            document.querySelector('.editor button').textContent = '✏️ 更新';
+            document.getElementById('noteTitle').focus();
+        }
+
+        async function deleteNote(id) {
+            if (!confirm('确定删除这条备忘录？')) return;
+            const result = await api('/api/notes/' + id, null);
+            if (result.code === 200) {
+                showMessage(document.getElementById('noteMessage'), '删除成功', false);
+                loadNotes();
+            }
+        }
+    </script>
+</body>
+</html>
