@@ -57,6 +57,19 @@
         </div>
     </div>
 
+    <!-- ===== 查看详情弹窗 ===== -->
+    <div id="detailModal" class="modal" style="display:none" onclick="closeDetail()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="closeDetail()">&times;</span>
+            <h2 id="detailTitle"></h2>
+            <p id="detailContent" class="detail-body"></p>
+            <p class="detail-meta">
+                <span id="detailTime"></span>
+                <span id="detailFrom"></span>
+            </p>
+        </div>
+    </div>
+
     <script>
         const API = '';
         let currentUserId = localStorage.getItem('userId') || null;
@@ -87,11 +100,11 @@
         }
 
         // ========== 认证 ==========
-        async function api(url, body) {
+        async function api(url, body, method) {
             const res = await fetch(API + url, {
-                method: body ? 'POST' : 'GET',
+                method: method || (body ? 'POST' : 'GET'),
                 headers: { 'Content-Type': 'application/json' },
-                body: body ? JSON.stringify(body) : undefined
+                body: method === 'GET' || method === 'DELETE' ? undefined : (body ? JSON.stringify(body) : undefined)
             });
             return res.json();
         }
@@ -159,7 +172,7 @@
             const body = { userId: parseInt(currentUserId), title, content };
 
             if (editingNoteId) {
-                const result = await api('/api/notes/' + editingNoteId, { ...body, id: editingNoteId });
+                const result = await api('/api/notes/' + editingNoteId, { ...body, id: editingNoteId }, 'PUT');
                 if (result.code === 200) {
                     showMessage(document.getElementById('noteMessage'), '更新成功', false);
                 } else {
@@ -193,6 +206,7 @@
                         </div>
                         <div class="note-body">${n.content}</div>
                         <div class="note-actions">
+                            <button class="btn-view" onclick="viewNote(${n.id})">👁️ 查看</button>
                             <button class="btn-edit" onclick="editNote(${n.id}, '${n.title.replace(/'/g, "\\'")}', '${n.content.replace(/'/g, "\\'")}')">✏️ 编辑</button>
                             <button class="btn-del" onclick="deleteNote(${n.id})">🗑️ 删除</button>
                         </div>
@@ -201,6 +215,23 @@
             } else {
                 list.innerHTML = '<div class="empty">还没有备忘录，写一条吧 ✍️</div>';
             }
+        }
+
+        async function viewNote(id) {
+            const result = await api('/api/notes/' + id, null, 'GET');
+            if (result.code === 200 && result.data) {
+                const n = result.data;
+                document.getElementById('detailTitle').textContent = n.title;
+                document.getElementById('detailContent').textContent = n.content;
+                document.getElementById('detailTime').textContent = n.createTime ? n.createTime.substring(0, 16) : '';
+                document.getElementById('detailModal').style.display = 'flex';
+            } else {
+                showMessage(document.getElementById('noteMessage'), '查询失败', true);
+            }
+        }
+
+        function closeDetail() {
+            document.getElementById('detailModal').style.display = 'none';
         }
 
         function editNote(id, title, content) {
@@ -213,7 +244,7 @@
 
         async function deleteNote(id) {
             if (!confirm('确定删除这条备忘录？')) return;
-            const result = await api('/api/notes/' + id, null);
+            const result = await api('/api/notes/' + id, null, 'DELETE');
             if (result.code === 200) {
                 showMessage(document.getElementById('noteMessage'), '删除成功', false);
                 loadNotes();
