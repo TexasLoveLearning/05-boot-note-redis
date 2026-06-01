@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fyc._4bootnote.common.Result;
 import com.fyc._4bootnote.entity.Note;
 import com.fyc._4bootnote.mapper.NoteMapper;
+import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/notes")
+@Slf4j
 public class NoteController {
 
     @Autowired
@@ -25,7 +27,7 @@ public class NoteController {
 
     // 新增
     @PostMapping
-    public Result<String> addNote(@RequestBody Note note) {
+    public Result<String> addNote(@RequestBody @Valid Note note) {
         noteMapper.insert(note);
         return Result.success("添加成功");
     }
@@ -39,10 +41,10 @@ public class NoteController {
         //先查redis
         Note note = (Note) redisTemplate.opsForValue().get(key);
         if (note != null) {
-            System.out.println("🔥 缓存命中！直接从 Redis 返回");
+            log.info("🔥 缓存命中！直接从 Redis 返回");
             return Result.success(note);//缓存命中，直接返回
         }
-        System.out.println("💧 缓存未命中，查 MySQL...");
+        log.info("💧 缓存未命中，查 MySQL...");
         //缓存没命中，查MySQL
         note = noteMapper.selectById(id);
 

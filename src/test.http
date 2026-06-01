@@ -46,3 +46,36 @@ Content-Type: application/json
 
 ### 8. 删除备忘录
 DELETE http://localhost:8080/api/notes/1
+
+### 9. 🧪 参数校验：不传标题（应返回400）
+POST http://localhost:8080/api/notes
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "content": "没有标题的备忘录"
+}
+
+### 10. 🧪 参数校验：不传userId（应返回400）
+POST http://localhost:8080/api/notes
+Content-Type: application/json
+
+{
+  "title": "没有用户ID",
+  "content": "谁写的？"
+}
+
+### 11. 🧪 参数校验：啥都不传（应返回400）
+POST http://localhost:8080/api/notes
+Content-Type: application/json
+
+{}
+
+### 12. 🧪 重复注册用户名（应返回数据已存在）
+POST http://localhost:8080/api/user/register
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "password": "123456"
+}
